@@ -1,1 +1,1 @@
-# Alt-Right Fromations
+# Alt-Right Formations
