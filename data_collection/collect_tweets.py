@@ -21,7 +21,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
     format="%(asctime)s | %(levelname)s: %(message)s",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 
@@ -49,6 +49,8 @@ class Tweet:
     possibly_sensitive: bool
     lang: str
     geo: str
+    referenced_tweets: dict
+    source: str
     retweet_count: int
     reply_count: int
     like_count: int
@@ -80,6 +82,8 @@ def _parse_response(response: tweepy.Response) -> List[Tweet]:
             possibly_sensitive=tweet.possibly_sensitive,
             lang=tweet.lang,
             geo=tweet.geo,
+            referenced_tweets=tweet.data.get("referenced_tweets"),
+            source=tweet.source,
             retweet_count=tweet.public_metrics["retweet_count"],
             reply_count=tweet.public_metrics["reply_count"],
             like_count=tweet.public_metrics["like_count"],
@@ -123,8 +127,8 @@ def collect_tweets(
         tweet_fields=fields.get("tweet_fields"),
         user_fields=fields.get("user_fields"),
         place_fields=fields.get("place_fields"),
-        max_results=50,
-        expansions="author_id",
+        max_results=500,
+        expansions=["author_id", "referenced_tweets.id"],
         next_token=next_token,
     )
 
