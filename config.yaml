@@ -1,7 +1,7 @@
 data_collection:
     start_time: 2008-01-01T00:00:00Z
     end_time: 2022-10-31T00:00:00Z
-    query: '(Alt-Right OR altright OR "alternative right" OR #altright) -is:retweet -is:nullcast -is:quote -is:reply lang:en'
+    query: 'Alt-Right OR altright OR "alternative right" OR #altright'
     fields:
-        tweet_fields: ["id", "created_at", "geo", "public_metrics", "text", "author_id", "possibly_sensitive", "lang"]
-        user_fields: ["id", "username", "public_metrics", "description", "location", "created_at", "verified"]
+      tweet_fields: ["id", "created_at", "geo", "public_metrics", "text", "author_id", "possibly_sensitive", "lang", "referenced_tweets", "source"]
+      user_fields: ["id", "username", "public_metrics", "description", "location", "created_at", "verified"]
