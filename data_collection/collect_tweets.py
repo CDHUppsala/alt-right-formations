@@ -1,6 +1,7 @@
 import argparse
 import logging
 import pathlib
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
@@ -73,36 +74,46 @@ def _parse_response(response: tweepy.Response) -> List[Tweet]:
 
     user_lookup = {user.id: user for user in response.includes["users"]}
 
-    return [
-        Tweet(
-            tweet_id=tweet.id,
-            author_id=tweet.author_id,
-            tweet_created_at=tweet.created_at,
-            text=tweet.text,
-            possibly_sensitive=tweet.possibly_sensitive,
-            lang=tweet.lang,
-            geo=tweet.geo,
-            referenced_tweets=tweet.data.get("referenced_tweets"),
-            source=tweet.source,
-            retweet_count=tweet.public_metrics["retweet_count"],
-            reply_count=tweet.public_metrics["reply_count"],
-            like_count=tweet.public_metrics["like_count"],
-            quote_count=tweet.public_metrics["quote_count"],
-            # user stuff
-            following_count=user_lookup[tweet.author_id].public_metrics[
-                "following_count"
-            ],
-            tweet_count=user_lookup[tweet.author_id].public_metrics["tweet_count"],
-            listed_count=user_lookup[tweet.author_id].public_metrics["listed_count"],
-            username=user_lookup[tweet.author_id].username,
-            name=user_lookup[tweet.author_id].name,
-            description=user_lookup[tweet.author_id].description,
-            account_created_at=user_lookup[tweet.author_id].created_at,
-            location=user_lookup[tweet.author_id].location,
-            verified=user_lookup[tweet.author_id].verified,
-        )
-        for tweet in response.data
-    ]
+    tweets = []
+    for tweet in response.data:
+        try:
+            tweets.append(
+                Tweet(
+                    tweet_id=tweet.id,
+                    author_id=tweet.author_id,
+                    tweet_created_at=tweet.created_at,
+                    text=tweet.text,
+                    possibly_sensitive=tweet.possibly_sensitive,
+                    lang=tweet.lang,
+                    geo=tweet.geo,
+                    referenced_tweets=tweet.data.get("referenced_tweets"),
+                    source=tweet.source,
+                    retweet_count=tweet.public_metrics["retweet_count"],
+                    reply_count=tweet.public_metrics["reply_count"],
+                    like_count=tweet.public_metrics["like_count"],
+                    quote_count=tweet.public_metrics["quote_count"],
+                    # user stuff
+                    following_count=user_lookup[tweet.author_id].public_metrics[
+                        "following_count"
+                    ],
+                    tweet_count=user_lookup[tweet.author_id].public_metrics[
+                        "tweet_count"
+                    ],
+                    listed_count=user_lookup[tweet.author_id].public_metrics[
+                        "listed_count"
+                    ],
+                    username=user_lookup[tweet.author_id].username,
+                    name=user_lookup[tweet.author_id].name,
+                    description=user_lookup[tweet.author_id].description,
+                    account_created_at=user_lookup[tweet.author_id].created_at,
+                    location=user_lookup[tweet.author_id].location,
+                    verified=user_lookup[tweet.author_id].verified,
+                )
+            )
+        except KeyError:
+            logging.error(f"Tweet ID: {tweet.id} has no user info. Skipping...")
+
+    return tweets
 
 
 def collect_tweets(
@@ -150,6 +161,8 @@ def collect_tweets(
 
     while n_total < n_tweets:
 
+        time.sleep(1)
+
         response = client.search_all_tweets(
             query=query,
             start_time=start_time,
@@ -157,7 +170,7 @@ def collect_tweets(
             tweet_fields=fields.get("tweet_fields"),
             user_fields=fields.get("user_fields"),
             place_fields=fields.get("place_fields"),
-            max_results=50,
+            max_results=500,
             expansions="author_id",
             next_token=next_token,
         )
