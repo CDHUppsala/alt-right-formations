@@ -21,17 +21,13 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
     format="%(asctime)s | %(levelname)s: %(message)s",
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
 
 
 def parse_config():
     with open("../config.yaml", "r") as stream:
-        try:
-            return yaml.safe_load(stream).get("data_collection")
-        except yaml.YAMLError as exc:
-            logging.error(exc)
-            raise
+        return yaml.safe_load(stream).get("data_collection")
 
 
 def parse_arguments():
@@ -117,6 +113,8 @@ def collect_tweets(
 
     client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
 
+    logging.info(f"Client connected. Starting to collect {n_tweets} tweets.")
+
     # Get initial query
     response = client.search_all_tweets(
         query=query,
@@ -126,7 +124,7 @@ def collect_tweets(
         user_fields=fields.get("user_fields"),
         place_fields=fields.get("place_fields"),
         max_results=50,
-        expansions = "author_id",
+        expansions="author_id",
         next_token=next_token,
     )
 
@@ -156,7 +154,7 @@ def collect_tweets(
             user_fields=fields.get("user_fields"),
             place_fields=fields.get("place_fields"),
             max_results=50,
-            expansions = "author_id",
+            expansions="author_id",
             next_token=next_token,
         )
 
@@ -167,10 +165,12 @@ def collect_tweets(
         next_token = response.meta["next_token"]
         with open("next_token.txt", "w") as t:
             t.write(next_token)
-        
+
         n_new = len(response.data)
         pbar.update(n_new)
         n_total += n_new
+
+    logging.info("Data collection finished.")
 
 
 def main():
