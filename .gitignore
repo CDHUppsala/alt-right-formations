@@ -1,2 +1,5 @@
 data_collection/collect_logs
 data_collection/data
+data_collection/next_token.txt
+requirements.txt
+venv
