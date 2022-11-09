@@ -10,6 +10,7 @@ import pandas as pd
 import tweepy
 import yaml
 from tqdm import tqdm
+from tweepy.errors import TooManyRequests, TwitterServerError
 
 # Setup logging
 log_path = pathlib.Path(f"collect_logs/{datetime.now().strftime('%Y-%m-%d_%H:%M')}.log")
@@ -116,6 +117,37 @@ def _parse_response(response: tweepy.Response) -> List[Tweet]:
     return tweets
 
 
+def _request_tweets(client, query, start_time, end_time, fields, next_token):
+
+    tries = 10
+    for attempt in range(tries):
+        try:
+            response = client.search_all_tweets(
+                query=query,
+                start_time=start_time,
+                end_time=end_time,
+                tweet_fields=fields.get("tweet_fields"),
+                user_fields=fields.get("user_fields"),
+                max_results=500,
+                expansions=["author_id", "referenced_tweets.id"],
+                next_token=next_token,
+            )
+
+        except (TwitterServerError, TooManyRequests) as e:
+            logging.error(f"Request failed, sleeping for 10 sec. Attempt: {attempt}.")
+            logging.error(e)
+            time.sleep(10)
+            continue
+
+        else:
+            break
+    else:
+        logging.error(f"Request failed after {tries} attempts. Continuing...")
+        return
+
+    return response
+
+
 def collect_tweets(
     query: str,
     start_time: datetime,
@@ -131,17 +163,16 @@ def collect_tweets(
     logging.info(f"Client connected. Starting to collect {n_tweets} tweets.")
 
     # Get initial query
-    response = client.search_all_tweets(
+    response = _request_tweets(
+        client=client,
         query=query,
         start_time=start_time,
         end_time=end_time,
-        tweet_fields=fields.get("tweet_fields"),
-        user_fields=fields.get("user_fields"),
-        place_fields=fields.get("place_fields"),
-        max_results=500,
-        expansions=["author_id", "referenced_tweets.id"],
+        fields=fields,
         next_token=next_token,
     )
+    if not response:
+        raise Exception("First request failed. Stopping...")
 
     # Save to Csv
     csv_path = pathlib.Path(f"data/{datetime.now().strftime('%Y-%m-%d_%H:%M')}.csv")
@@ -163,17 +194,18 @@ def collect_tweets(
 
         time.sleep(1)
 
-        response = client.search_all_tweets(
+        # Get initial query
+        response = _request_tweets(
+            client=client,
             query=query,
             start_time=start_time,
             end_time=end_time,
-            tweet_fields=fields.get("tweet_fields"),
-            user_fields=fields.get("user_fields"),
-            place_fields=fields.get("place_fields"),
-            max_results=500,
-            expansions="author_id",
+            fields=fields,
             next_token=next_token,
         )
+
+        if not response:
+            continue
 
         df = pd.DataFrame(_parse_response(response))
         df.to_csv(csv_path, header=False, index=False, mode="a")
