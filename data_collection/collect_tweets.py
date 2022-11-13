@@ -23,7 +23,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
     format="%(asctime)s | %(levelname)s: %(message)s",
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
 
 
@@ -172,7 +172,7 @@ def collect_tweets(
         next_token=next_token,
     )
     if not response:
-        raise Exception("First request failed. Stopping...")
+        raise TwitterServerError("First request failed. Stopping...")
 
     # Save to Csv
     csv_path = pathlib.Path(f"data/{datetime.now().strftime('%Y-%m-%d_%H:%M')}.csv")
@@ -192,7 +192,7 @@ def collect_tweets(
 
     while n_total < n_tweets:
 
-        time.sleep(1)
+        time.sleep(0.5)
 
         # Get initial query
         response = _request_tweets(
