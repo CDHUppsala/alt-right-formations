@@ -11,6 +11,18 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.tokenize import TweetTokenizer
 from tqdm import tqdm
 
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s: %(message)s", level=logging.INFO
+)
+
+# Instantiate the stemmer, lemmatizer and tokenizer objects
+stemmer = PorterStemmer()
+lemmatizer = WordNetLemmatizer()
+tokenizer = TweetTokenizer()
+
+# Get stopwords
+stopwords = list(nltk.corpus.stopwords.words("english"))
+
 
 def parse_arguments():
 
@@ -20,95 +32,91 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def process_text(tweets: List, n_jobs: int = 4) -> zip[Tuple[str]]:
+def _clean_tweet(tweet: str) -> Tuple[str, str]:
+    # Lowercasing words
+    tweet = tweet.lower()
 
-    # Instantiate the stemmer, lemmatizer and tokenizer objects
-    stemmer = PorterStemmer()
-    lemmatizer = WordNetLemmatizer()
-    tokenizer = TweetTokenizer()
+    tweet = re.sub(r"…", "", tweet)
 
-    # Get stopwords
-    stop_words_list = list(nltk.corpus.stopwords.words("english"))
+    # Removing '&amp' which was found to be common
+    tweet = re.sub(r"&amp", "", tweet)
 
-    def _clean_tweet(tweet: str) -> Tuple[str, str]:
-        # Lowercasing words
-        tweet = tweet.lower()
+    # Replace other instances of "&" with "and"
+    tweet = re.sub(r"&", "and", tweet)
 
-        tweet = re.sub(r"…", "", tweet)
+    # Removing mentions
+    tweet = re.sub(r"@\w+ ", "", tweet)
 
-        # Removing '&amp' which was found to be common
-        tweet = re.sub(r"&amp", "", tweet)
+    # Removing 'RT' and 'via'
+    tweet = re.sub(r"(^rt|^via)((?:\b\W*@\w+)+): ", "", tweet)
 
-        # Replace other instances of "&" with "and"
-        tweet = re.sub(r"&", "and", tweet)
+    # Removing emojis
+    EMOJI_PATTERN = re.compile(
+        "["
+        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F700-\U0001F77F"  # alchemical symbols
+        "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+        "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+        "\U0001FA00-\U0001FA6F"  # Chess Symbols
+        "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+        "\U00002702-\U000027B0"  # Dingbats
+        "\U000024C2-\U0001F251"
+        "]+"
+    )
 
-        # Removing mentions
-        tweet = re.sub(r"@\w+ ", "", tweet)
+    tweet = re.sub(EMOJI_PATTERN, "", tweet)
 
-        # Removing 'RT' and 'via'
-        tweet = re.sub(r"(^rt|^via)((?:\b\W*@\w+)+): ", "", tweet)
+    # Removing punctuation
+    my_punctuation = string.punctuation.replace("#", "")
+    my_punctuation = my_punctuation.replace("-", "")
 
-        # Removing emojis
-        EMOJI_PATTERN = re.compile(
-            "["
-            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-            "\U0001F300-\U0001F5FF"  # symbols & pictographs
-            "\U0001F600-\U0001F64F"  # emoticons
-            "\U0001F680-\U0001F6FF"  # transport & map symbols
-            "\U0001F700-\U0001F77F"  # alchemical symbols
-            "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
-            "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
-            "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
-            "\U0001FA00-\U0001FA6F"  # Chess Symbols
-            "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-            "\U00002702-\U000027B0"  # Dingbats
-            "\U000024C2-\U0001F251"
-            "]+"
-        )
+    tweet = tweet.translate(str.maketrans("", "", my_punctuation))
+    tweet = re.sub(
+        r" - ", "", tweet
+    )  # removing dash lines bounded by whitespace (and therefore not part of a word)
+    tweet = re.sub(
+        r"[’“”—,!]", "", tweet
+    )  # removing punctuation that is not captured by string.punctuation
 
-        tweet = re.sub(EMOJI_PATTERN, "", tweet)
+    # Removing odd special characters
+    tweet = re.sub(r"[┻┃━┳┓┏┛┗]", "", tweet)
+    tweet = re.sub(r"\u202F|\u2069|\u200d|\u2066", "", tweet)
 
-        # Removing punctuation
-        my_punctuation = string.punctuation.replace("#", "")
-        my_punctuation = my_punctuation.replace("-", "")
+    # Removing URLs
+    tweet = re.sub(r"http\S+", "", tweet)
 
-        tweet = tweet.translate(str.maketrans("", "", my_punctuation))
-        tweet = re.sub(
-            r" - ", "", tweet
-        )  # removing dash lines bounded by whitespace (and therefore not part of a word)
-        tweet = re.sub(
-            r"[’“”—,!]", "", tweet
-        )  # removing punctuation that is not captured by string.punctuation
+    # Removing numbers
+    tweet = re.sub(r"[0-9]", "", tweet)
 
-        # Removing odd special characters
-        tweet = re.sub(r"[┻┃━┳┓┏┛┗]", "", tweet)
-        tweet = re.sub(r"\u202F|\u2069|\u200d|\u2066", "", tweet)
+    # Removing separators and superfluous whitespace
+    tweet = tweet.strip()
+    tweet = re.sub(r" +", " ", tweet)
 
-        # Removing URLs
-        tweet = re.sub(r"http\S+", "", tweet)
+    # Tokenizing
+    tokens = tokenizer.tokenize(tweet)
 
-        # Removing numbers
-        tweet = re.sub(r"[0-9]", "", tweet)
+    # Removing stopwords
+    tokens = [w for w in tokens if w not in stopwords]
 
-        # Removing separators and superfluous whitespace
-        tweet = tweet.strip()
-        tweet = re.sub(r" +", " ", tweet)
+    # Lemmatize or stem the tok
+    stems = [stemmer.stem(w) for w in tokens]
+    lemmas = [lemmatizer.lemmatize(w) for w in tokens]
 
-        # Tokenizing
-        tokens = tokenizer.tokenize(tweet)
+    return " ".join(stems), " ".join(lemmas)
 
-        # Removing stopwords
-        tokens = [w for w in tokens if w not in stop_words_list]
 
-        # Lemmatize or stem the tok
-        stems = [stemmer.stem(w) for w in tokens]
-        lemmas = [lemmatizer.lemmatize(w) for w in tokens]
-
-        return " ".join(stems), " ".join(lemmas)
+def process_text(tweets: list, n_jobs: int = 4):
 
     with Pool(n_jobs) as p:
         # stems, lemmas =
-        return tqdm(zip(*p.imap(_clean_tweet, tweets)), total=len(tweets))
+        return tqdm(
+            zip(*p.imap(_clean_tweet, tweets)),
+            total=len(tweets),
+        )
 
 
 def main():
@@ -123,3 +131,7 @@ def main():
     pkl_path = "tweets_txt_processed.pkl"
     logging.info(f"Saving to {pkl_path}")
     df.to_pickle(pkl_path)
+
+
+if __name__ == "__main__":
+    main()
