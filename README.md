@@ -3,13 +3,23 @@
 
 ## Requirements
 
-The project uses `poetry` for dependency management. Make sure to have it
-installed and do the following to activate the virtual environment.
+The project uses `conda` for dependency management. First make sure conda is
+installed, you can follow the regular install instructions for
+[linux](https://conda.io/projects/conda/en/latest/user-guide/install/linux.html).
+If on BEAST you can simply activate the environment by
 
-``` bash
-poetry install
-poetry shell
 ```
+conda activate /zpool/beast-mirror/alt-right-formations/3.10.8
+```
+
+Or for convenience fist `export
+CONDA_ENVS_PATH=/zpool/beast-mirror/alt-right-formations/` and them simply
+`conda activate 3.10.8`. If running somewhere else, first create the environment
+
+```
+conda env create -f environment.yml
+```
+
 
 ## Data collections
 
