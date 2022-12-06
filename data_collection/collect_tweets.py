@@ -23,7 +23,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
     format="%(asctime)s | %(levelname)s: %(message)s",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 

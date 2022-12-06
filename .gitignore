@@ -1,6 +1,8 @@
 data_collection/collect_logs
 data_collection/data
 data_collection/next_token.txt
+data_collection/next_token.txt
+last_token_karl.txt
 experimentation
 requirements.txt
 venv
