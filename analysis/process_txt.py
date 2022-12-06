@@ -122,7 +122,7 @@ def process_text(tweets: list, n_jobs: int = 4):
         )
 
 
-def get_bigrams(unigram: list) -> list:
+def _get_bigrams(unigram: list) -> list:
     """
     Takes list of unigrams and converts them to bigrams
     """
@@ -143,8 +143,8 @@ def main():
     df["stems"], df["lemmas"] = process_text(df["text"].tolist(), args.njobs)
     logging.info("Text processed. Getting bigrams")
 
-    df["stems_bigrams"] = df["stems"].apply(get_bigrams) + df["stems"]
-    df["lemmas_bigrams"] = df["lemmas"].apply(get_bigrams) + df["lemmas"]
+    df["stems_bigrams"] = df["stems"].apply(_get_bigrams) + df["stems"]
+    df["lemmas_bigrams"] = df["lemmas"].apply(_get_bigrams) + df["lemmas"]
 
     pkl_path = f"tweets_txt_processed-{datetime.now().strftime('%Y-%m-%d')}.pkl"
     logging.info(f"Saving to {pkl_path}")
