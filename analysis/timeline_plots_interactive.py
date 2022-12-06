@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from .process_txt import _clean_tweet, _get_bigrams
 
 
-def group_daily(text_col: str = "bigram_lemmas"):
+def create_dfs(text_col: str = "bigram_lemmas"):
     """
     Aggregates tweet text on creation date.
     By defaults aggregates lemmas (inc bigrams)
@@ -21,15 +21,24 @@ def group_daily(text_col: str = "bigram_lemmas"):
         df["created_at"].dt.to_period("M").apply(lambda m: m.to_timestamp())
     )
 
-    df = df.groupby("date").agg({text_col: "sum"}).reset_index()
-
     # Flatten list to str
     df["text"] = df[text_col].str.split()
 
-    return df
+    # Group df by the day
+    df = df.groupby("created_at_day")["text"].apply(" ".join).reset_index()
+
+    # Group df by both year and month
+    df_month = df.groupby("created_at_month")["text"].apply(" ".join).reset_index()
+
+    return df, df_month
 
 
-def query_tokens_timeline(query, df):
+def query_tokens_timeline(df):
+    """
+    Creates an interactive figure that displays
+    the daily frequency of a provided query.
+    """
+
     def count_occurence_df(docs, query, index):
 
         result_tup = namedtuple("Count", "date token count")
@@ -112,3 +121,128 @@ def query_tokens_timeline(query, df):
     )
 
     fig.write_html("plots/tokens_timeline.html", auto_open=True)
+
+
+def sets_timeline(df):
+    name_sets = dict(
+        set1=[
+            "spencer",
+            "macdonald",
+            "taylor",
+            "johnson",
+            "friberg",
+            "angling",
+            "aurenheimer",
+            "weev",
+            "beale",
+            "vox_day",
+            "enoch",
+            "heimbach",
+            "wallace",
+            "lidell",
+            "nowicki",
+            "nameless_one",
+            "invictus",
+            "cantwell",
+            "kleve",
+            "irizarry",
+            "kessler",
+            "jorjani",
+            "ramondetta",
+            "monoxide",
+            "lokteff",
+            "forney",
+            "parrott",
+            "damigo",
+            "dickinson",
+            "mcarthy",
+            "gionet",
+            "treadstone",
+            "bake_alaska",
+        ],
+        set2=[
+            "cernovich",
+            "milo",
+            "yiannopoulos",
+            "milo_yannopoulos",
+            "gavin",
+            "mcinnes",
+            "gavin_mcinnes",
+            "pettibone",
+            "merwin",
+            "stewart",
+            "posobiec",
+            "chapman",
+            "prescott",
+            "wintrich",
+        ],
+        set3=[
+            "southern",
+            "molyneux",
+            "roosh",
+            "roosh_v",
+            "valizadeh",
+            "duke",
+            "palmgren",
+            "moldbug",
+            "morgan",
+            "millenial_woes",
+            "ramzpaul",
+            "coulter",
+            "gottfried",
+            "brimelow",
+            "donovan",
+            "mcnallen",
+            "lynn",
+            "hbd_chick",
+            "sailer",
+            "frost",
+            "jayman",
+            "cochran",
+            "west_hunter",
+        ],
+    )
+
+    for name, tokens in name_sets.items():
+
+        tokens_regex = "|".join(tokens)
+        df[name] = df["text"].str.count(tokens_regex)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["created_at_day"], y=df["set1"], name="set 1"))
+    fig.add_trace(go.Scatter(x=df["created_at_day"], y=df["set2"], name="set 2"))
+    fig.add_trace(go.Scatter(x=df["created_at_day"], y=df["set3"], name="set 3"))
+
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=[
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(count=3, label="3y", step="year", stepmode="backward"),
+                dict(step="all"),
+            ]
+        ),
+    )
+
+    fig.update_layout(autosize=False, width=1600, height=800)
+
+    fig.write_html("plots/sets_timeline.html")
+
+
+def top_tokens_barplot(df):
+    pass
+
+
+def main():
+
+    # Create datasets for plots
+    df_day, df_month = create_dfs()
+
+    query_tokens_timeline(df_day)
+    sets_timeline(df_day)
+
+
+if __name__ == "__main__":
+    main()
