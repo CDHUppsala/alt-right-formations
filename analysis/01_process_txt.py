@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import logging
 import re
 import string
@@ -32,7 +33,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def _clean_tweet(tweet: str) -> Tuple[str, str]:
+def _clean_tweet(tweet: str) -> Tuple[List[str], List[str]]:
     # Lowercasing words
     tweet = tweet.lower()
 
@@ -106,17 +107,30 @@ def _clean_tweet(tweet: str) -> Tuple[str, str]:
     stems = [stemmer.stem(w) for w in tokens]
     lemmas = [lemmatizer.lemmatize(w) for w in tokens]
 
-    return " ".join(stems), " ".join(lemmas)
+    return stems, lemmas
 
 
 def process_text(tweets: list, n_jobs: int = 4):
-
+    """
+    Maps the text processing to n workers.
+    """
     with Pool(n_jobs) as p:
         # stems, lemmas =
         return tqdm(
             zip(*p.imap(_clean_tweet, tweets)),
             total=len(tweets),
         )
+
+
+def get_bigrams(unigram: list) -> list:
+    """
+    Takes list of unigrams and converts them to bigrams
+    """
+    return [
+        "_".join([unigram[i], unigram[i + 1]])
+        for i, _ in enumerate(unigram)
+        if i != len(unigram) - 1
+    ]
 
 
 def main():
@@ -127,8 +141,12 @@ def main():
 
     logging.info(f"Processing {df.shape[0]} tweets across {args.njobs} workers")
     df["stems"], df["lemmas"] = process_text(df["text"].tolist(), args.njobs)
+    logging.info("Text processed. Getting bigrams")
 
-    pkl_path = "tweets_txt_processed.pkl"
+    df["stems_bigrams"] = df["stems"].apply(get_bigrams) + df["stems"]
+    df["lemmas_bigrams"] = df["lemmas"].apply(get_bigrams) + df["lemmas"]
+
+    pkl_path = f"tweets_txt_processed-{datetime.now().strftime('%Y-%m-%d')}.pkl"
     logging.info(f"Saving to {pkl_path}")
     df.to_pickle(pkl_path)
 
