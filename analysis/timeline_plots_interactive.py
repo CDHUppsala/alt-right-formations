@@ -5,35 +5,144 @@ import pandas as pd
 import plotly.graph_objects as go
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
-from .process_txt import _clean_tweet, _get_bigrams
+from process_txt import _clean_tweet, _get_bigrams
 
+tokens_query = [
+    "cuckservative",
+    "cuck",
+    "gamergate",
+    "sjw",
+    "feminis",
+    "feminaz",
+    "white",
+    "genocide",
+    "Trump",
+    "Normie",
+    "shitlib",
+    "shitposting",
+    "alpha",
+    "beta",
+    "lol",
+    "lul",
+    "white",
+    "suprema",
+    "troll",
+    "ridiculous",
+    "maga",
+]
 
-def create_dfs(text_col: str = "bigram_lemmas"):
+name_sets = dict(
+    set1=[
+        "spencer",
+        "macdonald",
+        "taylor",
+        "johnson",
+        "friberg",
+        "angling",
+        "aurenheimer",
+        "weev",
+        "beale",
+        "vox_day",
+        "enoch",
+        "heimbach",
+        "wallace",
+        "lidell",
+        "nowicki",
+        "nameless_one",
+        "invictus",
+        "cantwell",
+        "kleve",
+        "irizarry",
+        "kessler",
+        "jorjani",
+        "ramondetta",
+        "monoxide",
+        "lokteff",
+        "forney",
+        "parrott",
+        "damigo",
+        "dickinson",
+        "mcarthy",
+        "gionet",
+        "treadstone",
+        "bake_alaska",
+    ],
+    set2=[
+        "cernovich",
+        "milo",
+        "yiannopoulos",
+        "milo_yannopoulos",
+        "gavin",
+        "mcinnes",
+        "gavin_mcinnes",
+        "pettibone",
+        "merwin",
+        "stewart",
+        "posobiec",
+        "chapman",
+        "prescott",
+        "wintrich",
+    ],
+    set3=[
+        "southern",
+        "molyneux",
+        "roosh",
+        "roosh_v",
+        "valizadeh",
+        "duke",
+        "palmgren",
+        "moldbug",
+        "morgan",
+        "millenial_woes",
+        "ramzpaul",
+        "coulter",
+        "gottfried",
+        "brimelow",
+        "donovan",
+        "mcnallen",
+        "lynn",
+        "hbd_chick",
+        "sailer",
+        "frost",
+        "jayman",
+        "cochran",
+        "west_hunter",
+    ],
+)
+
+names_query = []
+for set in name_sets.values():
+    names_query += set
+
+def create_dfs(text_col: str = "lemmas_bigrams"):
     """
     Aggregates tweet text on creation date.
     By defaults aggregates lemmas (inc bigrams)
     """
     df = pd.read_pickle("tweets_txt_processed-2022-12-06.pkl")
-    df["created_at_day"] = df["created_at"].apply(
+    df["created_at_day"] = df["tweet_created_at"].apply(
         lambda x: datetime(x.year, x.month, x.day)
     )
     df["created_at_month"] = (
-        df["created_at"].dt.to_period("M").apply(lambda m: m.to_timestamp())
+        df["created_at_day"].dt.to_period("M").apply(lambda m: m.to_timestamp())
     )
 
     # Flatten list to str
-    df["text"] = df[text_col].str.split()
+    df["text"] = df[text_col].apply(" ".join)
 
     # Group df by the day
-    df = df.groupby("created_at_day")["text"].apply(" ".join).reset_index()
+    df_daily = df.groupby("created_at_day")["text"].apply(" ".join).reset_index()
 
     # Group df by both year and month
     df_month = df.groupby("created_at_month")["text"].apply(" ".join).reset_index()
 
-    return df, df_month
+    # Freeup some memory
+    del df
+
+    return df_daily, df_month
 
 
-def query_tokens_timeline(df):
+def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
     """
     Creates an interactive figure that displays
     the daily frequency of a provided query.
@@ -41,38 +150,14 @@ def query_tokens_timeline(df):
 
     def count_occurence_df(docs, query, index):
 
-        result_tup = namedtuple("Count", "date token count")
+        result_tup = namedtuple("Count", "created_at_day token count")
         results = []
 
         for doc, i in zip(docs, index):
             results.extend(
-                result_tup(date=i, token=w, count=doc.count(w)) for w in query
+                result_tup(created_at_day=i, token=w, count=doc.count(w)) for w in query
             )
         return pd.DataFrame(results)
-
-    query = [
-        "cuckservative",
-        "cuck",
-        "gamergate",
-        "sjw",
-        "feminis",
-        "feminaz",
-        "white",
-        "genocide",
-        "Trump",
-        "Normie",
-        "shitlib",
-        "shitposting",
-        "alpha",
-        "beta",
-        "lol",
-        "lul",
-        "white",
-        "suprema",
-        "troll",
-        "ridiculous",
-        "maga",
-    ]
 
     # Apply same preprocessing to query
     _, lemmas = _clean_tweet(" ".join(query))
@@ -102,7 +187,9 @@ def query_tokens_timeline(df):
         tmp_mask = mask.copy()
         tmp_mask[i] = True
         if tmp["count"].sum() > 200:
-            fig.add_trace(go.Scatter(x=tmp["date"], y=tmp["count"], name=token))
+            fig.add_trace(
+                go.Scatter(x=tmp["created_at_day"], y=tmp["count"], name=token)
+            )
 
     fig.update_layout(updatemenus=[go.layout.Updatemenu(active=0, buttons=buttons)])
 
@@ -120,88 +207,10 @@ def query_tokens_timeline(df):
         ),
     )
 
-    fig.write_html("plots/tokens_timeline.html", auto_open=True)
+    fig.write_html(f"plots/{filename}", auto_open=True)
 
 
-def sets_timeline(df):
-    name_sets = dict(
-        set1=[
-            "spencer",
-            "macdonald",
-            "taylor",
-            "johnson",
-            "friberg",
-            "angling",
-            "aurenheimer",
-            "weev",
-            "beale",
-            "vox_day",
-            "enoch",
-            "heimbach",
-            "wallace",
-            "lidell",
-            "nowicki",
-            "nameless_one",
-            "invictus",
-            "cantwell",
-            "kleve",
-            "irizarry",
-            "kessler",
-            "jorjani",
-            "ramondetta",
-            "monoxide",
-            "lokteff",
-            "forney",
-            "parrott",
-            "damigo",
-            "dickinson",
-            "mcarthy",
-            "gionet",
-            "treadstone",
-            "bake_alaska",
-        ],
-        set2=[
-            "cernovich",
-            "milo",
-            "yiannopoulos",
-            "milo_yannopoulos",
-            "gavin",
-            "mcinnes",
-            "gavin_mcinnes",
-            "pettibone",
-            "merwin",
-            "stewart",
-            "posobiec",
-            "chapman",
-            "prescott",
-            "wintrich",
-        ],
-        set3=[
-            "southern",
-            "molyneux",
-            "roosh",
-            "roosh_v",
-            "valizadeh",
-            "duke",
-            "palmgren",
-            "moldbug",
-            "morgan",
-            "millenial_woes",
-            "ramzpaul",
-            "coulter",
-            "gottfried",
-            "brimelow",
-            "donovan",
-            "mcnallen",
-            "lynn",
-            "hbd_chick",
-            "sailer",
-            "frost",
-            "jayman",
-            "cochran",
-            "west_hunter",
-        ],
-    )
+def sets_timeline(df, name_sets):
 
     for name, tokens in name_sets.items():
 
@@ -231,8 +240,71 @@ def sets_timeline(df):
     fig.write_html("plots/sets_timeline.html")
 
 
+def create_barplot(df: pd.DataFrame, n_largest=50, name="tf_barplot.html"):
+
+    plot_data = {}
+    for c in df.columns:
+        plot_data[c] = df[c].nlargest(n_largest).to_dict()
+
+    fig = go.Figure()
+
+    for m, d in plot_data.items():
+        # print(m.strftime("%Y-%m-%d"))
+        fig.add_trace(
+            go.Bar(
+                y=list(d.keys()),
+                x=list(d.values()),
+                name=m.strftime("%m/%d/%Y"),
+                orientation="h",
+            )
+        )
+
+    fig.update_layout(
+        yaxis=dict(autorange="reversed"),
+        font=dict(size=8),
+        autosize=False,
+        width=1000,
+        height=1200,
+    )
+
+    fig.write_html(name)
+
+
 def top_tokens_barplot(df):
-    pass
+
+    stopwords = [
+        "right",
+        "altright",
+        "_alt",
+        "alt",
+        "alt-right",
+        "alt_right",
+        "right",
+        "alternative",
+        "alternative_right",
+        "altright_",
+    ]
+
+    tfidf_vec = TfidfVectorizer(min_df=30, max_df=0.98, stop_words=stopwords)
+    tfidf = tfidf_vec.fit_transform(df["text"])
+
+    tfidf = pd.DataFrame(
+        tfidf.toarray().T,
+        columns=df["created_at_month"].tolist(),
+        index=tfidf_vec.get_feature_names(),
+    )
+
+    tf_vec = CountVectorizer(min_df=30, max_df=0.98, stop_words=stopwords)
+    tf = tf_vec.fit_transform(df["text"])
+
+    tf = pd.DataFrame(
+        tf.toarray().T,
+        columns=df["created_at_month"].tolist(),
+        index=tf_vec.get_feature_names(),
+    )
+
+    create_barplot(tf, name="plots/tf_barplot.html", n_largest=100)
+    create_barplot(tfidf, name="plots/tfidf_barplot.html", n_largest=100)
 
 
 def main():
@@ -240,8 +312,10 @@ def main():
     # Create datasets for plots
     df_day, df_month = create_dfs()
 
-    query_tokens_timeline(df_day)
-    sets_timeline(df_day)
+    top_tokens_barplot(df_month)
+    query_tokens_timeline(df_day, tokens_query)
+    query_tokens_timeline(df_day, names_query, filename="names_timeline.html")
+    sets_timeline(df_day, name_sets)
 
 
 if __name__ == "__main__":
