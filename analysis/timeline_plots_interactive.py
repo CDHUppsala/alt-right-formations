@@ -114,6 +114,7 @@ names_query = []
 for set in name_sets.values():
     names_query += set
 
+
 def create_dfs(text_col: str = "lemmas_bigrams"):
     """
     Aggregates tweet text on creation date.
@@ -165,7 +166,7 @@ def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
 
     # Create dataframe used for plot
     plot_df = count_occurence_df(
-        query, df["text"].tolist(), df["created_at_day"].tolist()
+        df["text"].tolist(), query, df["created_at_day"].tolist()
     )
 
     fig = go.Figure()
@@ -207,7 +208,7 @@ def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
         ),
     )
 
-    fig.write_html(f"plots/{filename}", auto_open=True)
+    fig.write_html(f"plots/{filename}")
 
 
 def sets_timeline(df, name_sets):
