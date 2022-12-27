@@ -6,3 +6,7 @@ last_token_karl.txt
 experimentation
 requirements.txt
 venv
+__pycache__/
+.ipynb_checkpoints
+analysis/plots/
+analysis/tweets_txt_processed-2022-12-06.pkl
