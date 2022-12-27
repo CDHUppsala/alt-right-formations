@@ -32,7 +32,28 @@ how to start collecting data.
 python data_collection/collect_tweets.py -t "your-beaerer-token" -n 1000
 ```
 
-Data in csv-format stored under `data_collection/data` and logs under
+Data in pickle-format stored under `data_collection/data` and logs under
 `data_collections/logs`. One can optionally add the argument `--next` to pass a
 pagination token, specifying where the collection should start (see more:
 <https://developer.twitter.com/en/docs/twitter-api/pagination>)
+
+## Analysis
+
+The directory `analysis` contains multiple scripts to generate different parts
+of the analysis.
+
+### `process_txt.py` 
+
+This script processes the raw tweet text by:
+
+1. Removing stopwords, symbols, numbers, punctuation and emojis
+2. Generates lemmatized and stemmed tokens
+3. Generates all bigrams resulting from nbr 2
+
+### `timeline_plots_interactive.py`
+
+Generate several interactive plots using `Plotly` of word occurrences across
+the corpus. Plots are stored under `analysis/plots`.
+
+
+
