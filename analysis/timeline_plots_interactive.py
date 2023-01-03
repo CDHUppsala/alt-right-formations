@@ -1,118 +1,21 @@
 from collections import namedtuple
 from datetime import datetime
+import re
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
+
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+import yaml
+import logging
 
-from process_txt import _clean_tweet, _get_bigrams
+logging.basicConfig(level=logging.INFO)
 
-tokens_query = [
-    "cuckservative",
-    "cuck",
-    "gamergate",
-    "sjw",
-    "feminis",
-    "feminaz",
-    "white",
-    "genocide",
-    "Trump",
-    "Normie",
-    "shitlib",
-    "shitposting",
-    "alpha",
-    "beta",
-    "lol",
-    "lul",
-    "white",
-    "suprema",
-    "troll",
-    "ridiculous",
-    "maga",
-]
 
-name_sets = dict(
-    set1=[
-        "spencer",
-        "macdonald",
-        "taylor",
-        "johnson",
-        "friberg",
-        "angling",
-        "aurenheimer",
-        "weev",
-        "beale",
-        "vox_day",
-        "enoch",
-        "heimbach",
-        "wallace",
-        "lidell",
-        "nowicki",
-        "nameless_one",
-        "invictus",
-        "cantwell",
-        "kleve",
-        "irizarry",
-        "kessler",
-        "jorjani",
-        "ramondetta",
-        "monoxide",
-        "lokteff",
-        "forney",
-        "parrott",
-        "damigo",
-        "dickinson",
-        "mcarthy",
-        "gionet",
-        "treadstone",
-        "bake_alaska",
-    ],
-    set2=[
-        "cernovich",
-        "milo",
-        "yiannopoulos",
-        "milo_yannopoulos",
-        "gavin",
-        "mcinnes",
-        "gavin_mcinnes",
-        "pettibone",
-        "merwin",
-        "stewart",
-        "posobiec",
-        "chapman",
-        "prescott",
-        "wintrich",
-    ],
-    set3=[
-        "southern",
-        "molyneux",
-        "roosh",
-        "roosh_v",
-        "valizadeh",
-        "duke",
-        "palmgren",
-        "moldbug",
-        "morgan",
-        "millenial_woes",
-        "ramzpaul",
-        "coulter",
-        "gottfried",
-        "brimelow",
-        "donovan",
-        "mcnallen",
-        "lynn",
-        "hbd_chick",
-        "sailer",
-        "frost",
-        "jayman",
-        "cochran",
-        "west_hunter",
-    ],
-)
-
-names_query = []
-for set in name_sets.values():
-    names_query += set
+# Read in tokens to plot
+with open("queries.yaml", "r") as stream:
+    queries = yaml.safe_load(stream)
 
 
 def create_dfs(text_col: str = "lemmas_bigrams"):
@@ -120,7 +23,16 @@ def create_dfs(text_col: str = "lemmas_bigrams"):
     Aggregates tweet text on creation date.
     By defaults aggregates lemmas (inc bigrams)
     """
-    df = pd.read_pickle("tweets_txt_processed-2022-12-06.pkl")
+    fname = "2022-11-13_processed.parquet"
+    logging.info(f"Starting to read {fname}")
+    df = pd.read_parquet(
+        "2022-11-13_processed.parquet",
+        columns=["tweet_created_at", "referenced_tweets", text_col],
+        engine="fastparquet",
+    )
+
+    logging.info("Aggregating on day and month")
+
     df["created_at_day"] = df["tweet_created_at"].apply(
         lambda x: datetime(x.year, x.month, x.day)
     )
@@ -128,19 +40,77 @@ def create_dfs(text_col: str = "lemmas_bigrams"):
         df["created_at_day"].dt.to_period("M").apply(lambda m: m.to_timestamp())
     )
 
+    # Check if retweet/reply/quote
+    df["retweet"] = df["referenced_tweets"].apply(
+        lambda x: True if x != "nan" else False
+    )
+
     # Flatten list to str
     df["text"] = df[text_col].apply(" ".join)
+    df.drop(columns=[text_col, "referenced_tweets", "tweet_created_at"], inplace=True)
 
     # Group df by the day
-    df_daily = df.groupby("created_at_day")["text"].apply(" ".join).reset_index()
+    df_daily = (
+        df.groupby("created_at_day")["text"]
+        .agg([" ".join, "count"])
+        .rename(columns={"join": "text", "count": "tweet_count"})
+        .reset_index()
+    )
+    df_daily_noretweet = (
+        df.query("retweet==False")
+        .groupby("created_at_day")["text"]
+        .agg([" ".join, "count"])
+        .rename(columns={"join": "text", "count": "tweet_count"})
+        .reset_index()
+    )
+
 
     # Group df by both year and month
     df_month = df.groupby("created_at_month")["text"].apply(" ".join).reset_index()
-
+    df_month_noretweet = (
+        df.query("retweet==False")
+        .groupby("created_at_month")["text"]
+        .apply(" ".join)
+        .reset_index()
+    )
     # Freeup some memory
     del df
 
-    return df_daily, df_month
+    logging.info("Reading data finished")
+
+    return df_daily, df_daily_noretweet, df_month, df_month_noretweet
+
+
+def tweet_freq_timeline(df, filename):
+    """
+    Plots the daily count of tweets.
+    """
+
+    fig = px.line(
+        df,
+        x="created_at_day",
+        y="tweet_count",
+        title="Daily Counts of Alt-Right Tweets",
+    )
+
+    fig.update_yaxes(fixedrange=False, autorange=True)
+
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list(
+                [
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(count=3, label="3y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ]
+            )
+        ),
+    )
+
+    fig.write_html(f"plots/{filename}")
 
 
 def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
@@ -150,26 +120,28 @@ def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
     """
 
     def count_occurence_df(docs, query, index):
+        """
+        Helper function for creating a dataframe of token counts.
+        """
 
         result_tup = namedtuple("Count", "created_at_day token count")
         results = []
 
         for doc, i in zip(docs, index):
             results.extend(
-                result_tup(created_at_day=i, token=w, count=doc.count(w)) for w in query
+                result_tup(created_at_day=i, token=w, count=len(re.findall(w, doc)))
+                for w in query
             )
         return pd.DataFrame(results)
-
-    # Apply same preprocessing to query
-    _, lemmas = _clean_tweet(" ".join(query))
-    query = lemmas + _get_bigrams(lemmas)
 
     # Create dataframe used for plot
     plot_df = count_occurence_df(
         df["text"].tolist(), query, df["created_at_day"].tolist()
     )
 
-    fig = go.Figure()
+    layout = {"yaxis": {"autorange": True, "fixedrange": False}}
+
+    fig = go.Figure(layout=layout)
 
     unique_tokens = plot_df.token.unique()
     n_tokens = len(unique_tokens)
@@ -200,7 +172,6 @@ def query_tokens_timeline(df, query, filename="tokens_timeline.html"):
             buttons=[
                 dict(count=1, label="1m", step="month", stepmode="backward"),
                 dict(count=6, label="6m", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
                 dict(count=1, label="1y", step="year", stepmode="backward"),
                 dict(count=3, label="3y", step="year", stepmode="backward"),
                 dict(step="all"),
@@ -241,7 +212,7 @@ def sets_timeline(df, name_sets):
     fig.write_html("plots/sets_timeline.html")
 
 
-def create_barplot(df: pd.DataFrame, n_largest=50, name="tf_barplot.html"):
+def create_barplot(df: pd.DataFrame, n_largest, filename):
 
     plot_data = {}
     for c in df.columns:
@@ -268,10 +239,14 @@ def create_barplot(df: pd.DataFrame, n_largest=50, name="tf_barplot.html"):
         height=1200,
     )
 
-    fig.write_html(name)
+    fig.write_html(f"plots/{filename}")
 
 
-def top_tokens_barplot(df):
+def top_tokens_barplot(df, filename):
+    """
+    Creates a barplot of the n most important tokens
+    according to term frequency and tfidf each month.
+    """
 
     stopwords = [
         "right",
@@ -286,37 +261,47 @@ def top_tokens_barplot(df):
         "altright_",
     ]
 
-    tfidf_vec = TfidfVectorizer(min_df=30, max_df=0.98, stop_words=stopwords)
+    tfidf_vec = TfidfVectorizer(min_df=30, max_df=0.99, stop_words=stopwords)
     tfidf = tfidf_vec.fit_transform(df["text"])
 
     tfidf = pd.DataFrame(
         tfidf.toarray().T,
         columns=df["created_at_month"].tolist(),
-        index=tfidf_vec.get_feature_names(),
+        index=tfidf_vec.get_feature_names_out(),
     )
 
-    tf_vec = CountVectorizer(min_df=30, max_df=0.98, stop_words=stopwords)
+    tf_vec = CountVectorizer(min_df=30, max_df=0.99, stop_words=stopwords)
     tf = tf_vec.fit_transform(df["text"])
 
     tf = pd.DataFrame(
         tf.toarray().T,
         columns=df["created_at_month"].tolist(),
-        index=tf_vec.get_feature_names(),
+        index=tf_vec.get_feature_names_out(),
     )
 
-    create_barplot(tf, name="plots/tf_barplot.html", n_largest=100)
-    create_barplot(tfidf, name="plots/tfidf_barplot.html", n_largest=100)
+    create_barplot(tf, filename=f"tf_{filename}", n_largest=100)
+    create_barplot(tfidf, filename=f"tfidf_{filename}.html", n_largest=100)
 
 
 def main():
 
     # Create datasets for plots
-    df_day, df_month = create_dfs()
+    df_day, df_day_noretweet, df_month, df_month_noretweet = create_dfs()
 
-    top_tokens_barplot(df_month)
-    query_tokens_timeline(df_day, tokens_query)
-    query_tokens_timeline(df_day, names_query, filename="names_timeline.html")
-    sets_timeline(df_day, name_sets)
+    tweet_freq_timeline(df_day, "tweet_freq_timeline.html")
+    tweet_freq_timeline(df_day_noretweet, "tweet_freq_timeline_noretweets.html")
+
+    top_tokens_barplot(df_month, filename="barplot.html")
+    top_tokens_barplot(df_month_noretweet, filename="barplot_noretweets.html")
+
+    for name, query in queries.get("sets").items():
+        query_tokens_timeline(df_day, query, filename=f"{name}_timeline.html")
+        query_tokens_timeline(
+            df_day_noretweet, query, filename=f"{name}_timeline_noretweets.html"
+        )
+
+    # query_tokens_timeline(df_day, names_query, filename="names_timeline.html")
+    # sets_timeline(df_day, name_sets)
 
 
 if __name__ == "__main__":
