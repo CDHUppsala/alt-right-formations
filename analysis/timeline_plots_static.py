@@ -176,7 +176,7 @@ def plot_sets_count(
     cmap = plt.cm.Set2.colors
     fig, axs = plt.subplots(dpi=500, figsize=(7, 4), nrows=2)
 
-    for i, y, label in enumerate(
+    for i, (y, label) in enumerate(
         zip(("altright", "altlite"), ("Alt-Right", "Alt-Lite"))
     ):
         axs[i].plot(
