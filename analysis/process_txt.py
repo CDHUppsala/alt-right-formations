@@ -137,7 +137,7 @@ def main():
 
     args = parse_arguments()
     logging.info(f"Reading dataset: {args.input}")
-    df = pd.read_pickle(args.input)
+    df = pd.read_parquet(args.input, engine = "fastparquet")
 
     logging.info(f"Processing {df.shape[0]} tweets across {args.njobs} workers")
     df["stems"], df["lemmas"] = process_text(df["text"].tolist(), args.njobs)
@@ -146,9 +146,9 @@ def main():
     df["stems_bigrams"] = df["stems"].apply(_get_bigrams) + df["stems"]
     df["lemmas_bigrams"] = df["lemmas"].apply(_get_bigrams) + df["lemmas"]
 
-    pkl_path = f"tweets_txt_processed-{datetime.now().strftime('%Y-%m-%d')}.pkl"
-    logging.info(f"Saving to {pkl_path}")
-    df.to_pickle(pkl_path)
+    parquet_path = "2022-11-13_processed.parquet"
+    logging.info(f"Saving to {parquet_path}")
+    df.to_parquet(parquet_path, engine = "pyarrow")
 
 
 if __name__ == "__main__":
